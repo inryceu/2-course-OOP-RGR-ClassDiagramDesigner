@@ -1,0 +1,25 @@
+{
+  "name": "class-diagram-generator",
+  "version": "1.0.0",
+  "description": "Автоматичний генератор діаграм класів для різних мов програмування",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "dev": "vite",
+    "preview": "vite preview",
+    "start": "vite"
+  },
+  "keywords": ["class-diagram", "typescript", "parser", "uml"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@typescript-eslint/parser": "^6.21.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.6",
+    "typescript": "^5.3.3",
+    "vite": "^5.0.10"
+  }
+}
+

@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Генератор діаграм класів</title>
+    <link rel="stylesheet" href="/src/styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎨 Генератор діаграм класів</h1>
+            <p class="subtitle">Автоматичне створення UML діаграм для TypeScript, JavaScript, C++ та C#</p>
+        </header>
+
+        <main>
+            <div class="upload-section">
+                <div class="file-input-wrapper">
+                    <label for="file-input" class="file-label">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="17 8 12 3 7 8"></polyline>
+                            <line x1="12" y1="3" x2="12" y2="15"></line>
+                        </svg>
+                        <span>Перетягніть файли сюди або клацніть для вибору</span>
+                        <small>Підтримуються: .ts, .js, .cpp, .h, .cs</small>
+                    </label>
+                    <input type="file" id="file-input" multiple accept=".ts,.js,.cpp,.h,.hpp,.cs">
+                </div>
+
+                <div class="language-selector">
+                    <label>Мова програмування:</label>
+                    <select id="language-select">
+                        <option value="auto">Автоматично</option>
+                        <option value="typescript">TypeScript</option>
+                        <option value="javascript">JavaScript</option>
+                        <option value="cpp">C++</option>
+                        <option value="csharp">C#</option>
+                    </select>
+                </div>
+
+                <div id="file-list" class="file-list"></div>
+            </div>
+
+            <div class="actions">
+                <button id="generate-btn" class="btn btn-primary" disabled>
+                    Згенерувати діаграму
+                </button>
+                <button id="clear-btn" class="btn btn-secondary">
+                    Очистити
+                </button>
+            </div>
+
+            <div id="diagram-section" class="diagram-section hidden">
+                <h2>Діаграма класів</h2>
+                <div id="diagram-container" class="diagram-container">
+                    <canvas id="diagram-canvas"></canvas>
+                </div>
+                <div class="diagram-actions">
+                    <button id="export-svg" class="btn btn-outline">Експортувати SVG</button>
+                    <button id="export-png" class="btn btn-outline">Експортувати PNG</button>
+                </div>
+            </div>
+
+            <div id="error-section" class="error-section hidden">
+                <h3>Помилка</h3>
+                <p id="error-message"></p>
+            </div>
+        </main>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
+
