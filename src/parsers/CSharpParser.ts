@@ -1,9 +1,6 @@
 import { BaseParser } from './IParser.js';
 import { ClassDiagram, ClassInfo, Field, Method, Parameter, Visibility, Relationship, RelationType } from '../models/ClassDiagram.js';
 
-/**
- * Парсер для C#
- */
 export class CSharpParser extends BaseParser {
   constructor() {
     super();
@@ -12,43 +9,33 @@ export class CSharpParser extends BaseParser {
 
   parse(sourceCode: string, fileName?: string): ClassDiagram {
     const diagram = new ClassDiagram();
-    
-    // Видаляємо коментарі
     const cleanCode = this.removeComments(sourceCode, '//', '/*', '*/');
-    
-    // Шукаємо всі класи та інтерфейси
     this.parseClasses(cleanCode, diagram);
     this.parseInterfaces(cleanCode, diagram);
-    
     return diagram;
   }
 
   private parseClasses(code: string, diagram: ClassDiagram): void {
-    // Регулярний вираз для пошуку класів
-    const classRegex = /(public|internal|protected|private)?\s*(abstract|sealed|static)?\s*class\s+(\w+)(?:\s*:\s*([\w\s,]+))?\s*\{([^}]*(?:\{[^}]*\}[^}]*)*)\}/g;
-    
+    const classPattern = /(public|internal|protected|private)?\s*(abstract|sealed|static)?\s*class\s+(\w+)(?:\s*:\s*([^{]+))?\s*\{/g;
+
     let match;
-    while ((match = classRegex.exec(code)) !== null) {
+    while ((match = classPattern.exec(code)) !== null) {
       const modifier = match[2];
       const className = match[3];
       const inheritanceStr = match[4];
-      const classBody = match[5];
-      
-      const isAbstract = modifier === 'abstract';
-      const classInfo = new ClassInfo(className, false, isAbstract);
-      
-      // Парсимо поля
+      const bodyStart = match.index + match[0].length;
+      const classBody = this.extractBalancedBraces(code, bodyStart);
+
+      if (classBody === null) {
+        continue;
+      }
+
+      const classInfo = new ClassInfo(className, false, modifier === 'abstract');
       this.parseFields(classBody, classInfo);
-      
-      // Парсимо властивості (properties)
       this.parseProperties(classBody, classInfo);
-      
-      // Парсимо методи
       this.parseMethods(classBody, classInfo);
-      
       diagram.addClass(classInfo);
-      
-      // Парсимо наслідування та інтерфейси
+
       if (inheritanceStr) {
         this.parseInheritance(className, inheritanceStr, diagram);
       }
@@ -56,26 +43,24 @@ export class CSharpParser extends BaseParser {
   }
 
   private parseInterfaces(code: string, diagram: ClassDiagram): void {
-    // Регулярний вираз для пошуку інтерфейсів
-    const interfaceRegex = /(public|internal)?\s*interface\s+(\w+)(?:\s*:\s*([\w\s,]+))?\s*\{([^}]*(?:\{[^}]*\}[^}]*)*)\}/g;
-    
+    const interfacePattern = /(public|internal)?\s*interface\s+(\w+)(?:\s*:\s*([^{]+))?\s*\{/g;
+
     let match;
-    while ((match = interfaceRegex.exec(code)) !== null) {
+    while ((match = interfacePattern.exec(code)) !== null) {
       const interfaceName = match[2];
       const inheritanceStr = match[3];
-      const interfaceBody = match[4];
-      
+      const bodyStart = match.index + match[0].length;
+      const interfaceBody = this.extractBalancedBraces(code, bodyStart);
+
+      if (interfaceBody === null) {
+        continue;
+      }
+
       const classInfo = new ClassInfo(interfaceName, true, false);
-      
-      // Парсимо властивості інтерфейсу
       this.parseInterfaceProperties(interfaceBody, classInfo);
-      
-      // Парсимо методи інтерфейсу
       this.parseInterfaceMethods(interfaceBody, classInfo);
-      
       diagram.addClass(classInfo);
-      
-      // Парсимо наслідування інтерфейсів
+
       if (inheritanceStr) {
         const interfaces = inheritanceStr.split(',').map(i => i.trim());
         interfaces.forEach(parentInterface => {
@@ -89,151 +74,404 @@ export class CSharpParser extends BaseParser {
     }
   }
 
-  private parseFields(classBody: string, classInfo: ClassInfo): void {
-    // Регулярний вираз для полів класу
-    const fieldRegex = /(public|private|protected|internal)?\s*(static|readonly|const)?\s*(readonly|const)?\s*([\w<>\[\]]+)\s+(\w+)(?:\s*=\s*([^;]+))?;/g;
-    
-    let match;
-    while ((match = fieldRegex.exec(classBody)) !== null) {
-      // Перевіряємо, що це не метод
-      if (match[0].includes('(') && match[0].includes(')')) continue;
-      
-      const visibilityStr = match[1] || 'private';
-      const modifier1 = match[2] || '';
-      const modifier2 = match[3] || '';
-      const fieldType = match[4];
-      const fieldName = match[5];
-      const defaultValue = match[6]?.trim();
-      
-      const isStatic = modifier1 === 'static' || modifier2 === 'static';
-      const isReadonly = modifier1 === 'readonly' || modifier2 === 'readonly' || 
-                        modifier1 === 'const' || modifier2 === 'const';
-      
-      const visibility = this.parseVisibility(visibilityStr);
-      
-      const field = new Field(fieldName, visibility, fieldType, isStatic, isReadonly, defaultValue);
-      classInfo.addField(field);
+  private extractBalancedBraces(code: string, startIndex: number): string | null {
+    let braceCount = 1;
+    let i = startIndex;
+    let inString = false;
+    let stringChar = '';
+    let inVerbatimString = false;
+
+    while (i < code.length && braceCount > 0) {
+      const char = code[i];
+      const nextChar = i < code.length - 1 ? code[i + 1] : '';
+
+      if (!inString && !inVerbatimString && char === '@' && nextChar === '"') {
+        inVerbatimString = true;
+        i += 2;
+        continue;
+      }
+
+      if (inVerbatimString) {
+        if (char === '"' && nextChar === '"') {
+          i += 2;
+          continue;
+        }
+        if (char === '"') {
+          inVerbatimString = false;
+        }
+        i++;
+        continue;
+      }
+
+      if (!inString && (char === '"' || char === "'")) {
+        inString = true;
+        stringChar = char;
+        i++;
+        continue;
+      }
+
+      if (inString) {
+        if (char === stringChar && code[i - 1] !== '\\') {
+          inString = false;
+          stringChar = '';
+        }
+        i++;
+        continue;
+      }
+
+      if (char === '/' && nextChar === '/') {
+        while (i < code.length && code[i] !== '\n') {
+          i++;
+        }
+        continue;
+      }
+
+      if (char === '/' && nextChar === '*') {
+        i += 2;
+        while (i < code.length - 1 && !(code[i] === '*' && code[i + 1] === '/')) {
+          i++;
+        }
+        i += 2;
+        continue;
+      }
+
+      if (char === '{') {
+        braceCount++;
+      } else if (char === '}') {
+        braceCount--;
+      }
+
+      i++;
     }
+
+    if (braceCount === 0) {
+      return code.substring(startIndex, i - 1);
+    }
+
+    return null;
+  }
+
+  private parseFields(classBody: string, classInfo: ClassInfo): void {
+    const statements = this.getTopLevelStatements(classBody);
+    const fieldRegex = /^(?:(public|private|protected|internal)\s+)?((?:static|readonly|const)\s+)*([\w<>\[\],\s]+?)\s+(\w+)(?:\s*=\s*([^;]+))?;$/;
+
+    statements.forEach(statement => {
+      const trimmed = statement.trim();
+      if (!trimmed.endsWith(';')) {
+        return;
+      }
+      if (trimmed.includes('(')) {
+        return;
+      }
+
+      const match = fieldRegex.exec(trimmed);
+      if (!match) {
+        return;
+      }
+
+      const visibility = this.parseVisibility(match[1] || 'private');
+      const typeRaw = match[3];
+      const fieldName = match[4];
+      const defaultValue = match[5]?.trim();
+      const isStatic = /\bstatic\b/.test(trimmed);
+      const isReadonly = /\breadonly\b/.test(trimmed) || /\bconst\b/.test(trimmed);
+      const fieldType = this.cleanType(typeRaw, ['static', 'readonly', 'const']);
+
+      classInfo.addField(new Field(fieldName, visibility, fieldType, isStatic, isReadonly, defaultValue));
+    });
   }
 
   private parseProperties(classBody: string, classInfo: ClassInfo): void {
-    // Регулярний вираз для властивостей (properties) - більш гнучкий
-    // Формати: 
-    // public int Value { get; set; }
-    // public int Value { get; }
-    // public int Value { get; set; } = 10;
-    // public int Value { get; private set; }
-    const propertyRegex = /(public|private|protected|internal)?\s*(static)?\s*(virtual|override|abstract|readonly)?\s*([\w<>\[\]]+)\s+(\w+)\s*\{[^}]*\}/g;
-    
+    const propertyPattern = /(public|private|protected|internal)?\s*(?:static|virtual|override|abstract|readonly|sealed)?\s*([\w<>\[\],\s]+?)\s+(\w+)\s*\{/g;
+
     let match;
-    while ((match = propertyRegex.exec(classBody)) !== null) {
-      const fullMatch = match[0];
-      
-      // Перевіряємо, чи це справді property (має get або set)
-      if (!fullMatch.includes('get') && !fullMatch.includes('set')) {
+    while ((match = propertyPattern.exec(classBody)) !== null) {
+      const header = match[0];
+      const bodyStart = match.index + match[0].length;
+      const body = this.extractBalancedBraces(classBody, bodyStart);
+      if (body === null) {
         continue;
       }
-      
-      const visibilityStr = match[1] || 'private';
-      const isStatic = !!match[2];
-      const modifier = match[3];
-      const propertyType = match[4];
-      const propertyName = match[5];
-      
-      const visibility = this.parseVisibility(visibilityStr);
-      const isReadonly = modifier === 'readonly' || (fullMatch.includes('{ get; }') && !fullMatch.includes('set'));
-      
-      // Властивості в C# можна представити як поля з getter/setter
-      const field = new Field(propertyName, visibility, propertyType, isStatic, isReadonly);
-      classInfo.addField(field);
+
+      if (!body.includes('get') && !body.includes('set')) {
+        continue;
+      }
+
+      const visibility = this.parseVisibility(match[1] || 'private');
+      const propertyType = this.cleanType(match[2]);
+      const propertyName = match[3];
+      const isStatic = /\bstatic\b/.test(header);
+      const bodyContent = body.trim();
+      const hasSetter = /set\s*;/.test(bodyContent);
+      const isReadonly = !hasSetter;
+
+      classInfo.addField(new Field(propertyName, visibility, propertyType, isStatic, isReadonly));
     }
   }
 
   private parseMethods(classBody: string, classInfo: ClassInfo): void {
-    const processedMethods = new Set<string>();
-    
-    // Регулярний вираз для методів з тілом: method() { } або method();
-    const methodRegex = /(public|private|protected|internal)?\s*(static)?\s*(virtual|override|abstract|async)?\s*([\w<>\[\]]+)\s+(\w+)\s*\(([^)]*)\)\s*[{;]/g;
-    
-    let match;
-    while ((match = methodRegex.exec(classBody)) !== null) {
-      const visibilityStr = match[1] || 'private';
-      const isStatic = !!match[2];
-      const modifier = match[3];
-      const returnType = match[4];
-      const methodName = match[5];
-      const paramsStr = match[6];
-      
-      // Пропускаємо властивості (get, set) та ключові слова
-      if (methodName === 'get' || methodName === 'set' || 
-          methodName === 'if' || methodName === 'for' || methodName === 'while') {
+    const statements = this.getTopLevelStatements(classBody);
+    const methodRegex = /^((?:public|private|protected|internal)\s+)?((?:static|virtual|override|abstract|async|sealed|extern|partial)\s+)*([\w<>\[\],\s]+?)\s+(\w+)\s*\(([^)]*)\)\s*(?:;)?$/;
+    const constructorRegex = new RegExp(`^((?:public|private|protected|internal)\\s+)?${this.escapeRegex(classInfo.name)}\\s*\\(([^)]*)\\)`);
+    const processed = new Set<string>();
+
+    statements.forEach(statement => {
+      const trimmed = statement.trim();
+      const constructorMatch = constructorRegex.exec(trimmed);
+      if (constructorMatch) {
+        const visibilityStr = constructorMatch[1] ? constructorMatch[1].trim() : 'public';
+        const visibility = this.parseVisibility(visibilityStr);
+        this.addConstructor(constructorMatch[2], visibility, classInfo);
+        return;
+      }
+
+      const destructorRegex = new RegExp(`^~${this.escapeRegex(classInfo.name)}\\s*\\(([^)]*)\\)`);
+      const destructorMatch = destructorRegex.exec(trimmed);
+      if (destructorMatch) {
+        const parameters = this.parseParameters(destructorMatch[1] || '');
+        classInfo.addMethod(new Method(`~${classInfo.name}`, Visibility.PUBLIC, '', parameters));
+        return;
+      }
+
+      const match = methodRegex.exec(trimmed);
+      if (!match) {
+        return;
+      }
+
+      const visibility = this.parseVisibility((match[1] || 'private').trim());
+      const returnTypeRaw = match[3];
+      const methodName = match[4];
+      const paramsStr = match[5];
+      const isStatic = /\bstatic\b/.test(trimmed);
+      const isAbstract = /\babstract\b/.test(trimmed);
+      const returnType = this.cleanType(returnTypeRaw, ['static', 'virtual', 'override', 'abstract', 'async', 'sealed', 'extern', 'partial']);
+
+      if (['get', 'set', 'if', 'for', 'while', 'switch', 'catch'].includes(methodName)) {
+        return;
+      }
+
+      if (processed.has(methodName)) {
+        return;
+      }
+
+      const parameters = this.parseParameters(paramsStr);
+      classInfo.addMethod(new Method(methodName, visibility, returnType, parameters, isStatic, isAbstract));
+      processed.add(methodName);
+    });
+  }
+
+  private addConstructor(paramsStr: string, visibility: Visibility, classInfo: ClassInfo): void {
+    const exists = classInfo.methods.some(m => m.name === classInfo.name);
+    if (exists) {
+      return;
+    }
+    const parameters = this.parseParameters(paramsStr);
+    classInfo.addMethod(new Method(classInfo.name, visibility, '', parameters));
+  }
+
+  private getTopLevelStatements(content: string): string[] {
+    const statements: string[] = [];
+    let current = '';
+    let i = 0;
+    let depth = 0;
+    let inString = false;
+    let stringChar = '';
+    let inVerbatimString = false;
+
+    while (i < content.length) {
+      const char = content[i];
+      const nextChar = i < content.length - 1 ? content[i + 1] : '';
+
+      if (!inString && !inVerbatimString && char === '@' && nextChar === '"') {
+        inVerbatimString = true;
+        current += char + nextChar;
+        i += 2;
         continue;
       }
-      
-      // Пропускаємо конструктори (обробляються окремо)
-      if (methodName === classInfo.name) {
+
+      if (inVerbatimString) {
+        if (char === '"' && nextChar === '"') {
+          current += char + nextChar;
+          i += 2;
+          continue;
+        }
+        if (char === '"') {
+          inVerbatimString = false;
+        }
+        current += char;
+        i++;
         continue;
       }
-      
-      const visibility = this.parseVisibility(visibilityStr);
-      const parameters = this.parseParameters(paramsStr);
-      const isAbstract = modifier === 'abstract';
-      
-      const method = new Method(methodName, visibility, returnType, parameters, isStatic, isAbstract);
-      classInfo.addMethod(method);
-      processedMethods.add(methodName);
-    }
-    
-    // Окремо шукаємо конструктори
-    const escapedClassName = classInfo.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const constructorRegex = new RegExp(`(public|private|protected|internal)?\\s*${escapedClassName}\\s*\\(([^)]*)\\)`, 'g');
-    let constructorMatch;
-    while ((constructorMatch = constructorRegex.exec(classBody)) !== null) {
-      const visibilityStr = constructorMatch[1] || 'public';
-      const paramsStr = constructorMatch[2];
-      
-      const visibility = this.parseVisibility(visibilityStr);
-      const parameters = this.parseParameters(paramsStr);
-      
-      // Перевіряємо, чи конструктор ще не доданий
-      const exists = classInfo.methods.some(m => m.name === classInfo.name);
-      if (!exists) {
-        const constructor = new Method(classInfo.name, visibility, '', parameters);
-        classInfo.addMethod(constructor);
+
+      if (!inString && (char === '"' || char === "'")) {
+        inString = true;
+        stringChar = char;
+        current += char;
+        i++;
+        continue;
       }
+
+      if (inString) {
+        if (char === stringChar && content[i - 1] !== '\\') {
+          inString = false;
+          stringChar = '';
+        }
+        current += char;
+        i++;
+        continue;
+      }
+
+      if (char === '{') {
+        if (depth === 0) {
+          const trimmed = current.trim();
+          if (trimmed) {
+            statements.push(trimmed);
+          }
+          const nextIndex = this.skipBlock(content, i);
+          i = nextIndex;
+          current = '';
+          continue;
+        }
+        depth++;
+        current += char;
+        i++;
+        continue;
+      }
+
+      if (char === '}') {
+        if (depth > 0) {
+          depth--;
+        }
+        current += char;
+        i++;
+        continue;
+      }
+
+      if (char === ';' && depth === 0) {
+        current += char;
+        const trimmed = current.trim();
+        if (trimmed) {
+          statements.push(trimmed);
+        }
+        current = '';
+        i++;
+        continue;
+      }
+
+      if (char === '/' && nextChar === '/') {
+        while (i < content.length && content[i] !== '\n') {
+          i++;
+        }
+        continue;
+      }
+
+      if (char === '/' && nextChar === '*') {
+        i += 2;
+        while (i < content.length - 1 && !(content[i] === '*' && content[i + 1] === '/')) {
+          i++;
+        }
+        i += 2;
+        continue;
+      }
+
+      current += char;
+      i++;
     }
+
+    const trimmed = current.trim();
+    if (trimmed) {
+      statements.push(trimmed);
+    }
+
+    return statements;
+  }
+
+  private skipBlock(content: string, startIndex: number): number {
+    let depth = 0;
+    let i = startIndex;
+    let inString = false;
+    let stringChar = '';
+    let inVerbatimString = false;
+
+    while (i < content.length) {
+      const char = content[i];
+      const nextChar = i < content.length - 1 ? content[i + 1] : '';
+
+      if (!inString && !inVerbatimString && char === '@' && nextChar === '"') {
+        inVerbatimString = true;
+        i += 2;
+        continue;
+      }
+
+      if (inVerbatimString) {
+        if (char === '"' && nextChar === '"') {
+          i += 2;
+          continue;
+        }
+        if (char === '"') {
+          inVerbatimString = false;
+        }
+        i++;
+        continue;
+      }
+
+      if (!inString && (char === '"' || char === "'")) {
+        inString = true;
+        stringChar = char;
+        i++;
+        continue;
+      }
+
+      if (inString) {
+        if (char === stringChar && content[i - 1] !== '\\') {
+          inString = false;
+          stringChar = '';
+        }
+        i++;
+        continue;
+      }
+
+      if (char === '{') {
+        depth++;
+      } else if (char === '}') {
+        depth--;
+        if (depth === 0) {
+          return i + 1;
+        }
+      }
+
+      i++;
+    }
+
+    return content.length;
   }
 
   private parseInterfaceProperties(interfaceBody: string, classInfo: ClassInfo): void {
-    // Регулярний вираз для властивостей інтерфейсу
-    const propertyRegex = /([\w<>\[\]]+)\s+(\w+)\s*\{\s*get;?\s*(?:set;?)?\s*\}/g;
-    
+    const propertyRegex = /([\w<>\[\],\s]+?)\s+(\w+)\s*\{\s*get;?\s*(?:set;?)?\s*\}/g;
+
     let match;
     while ((match = propertyRegex.exec(interfaceBody)) !== null) {
-      const propertyType = match[1];
+      const propertyType = this.cleanType(match[1]);
       const propertyName = match[2];
-      
-      const field = new Field(propertyName, Visibility.PUBLIC, propertyType);
-      classInfo.addField(field);
+      classInfo.addField(new Field(propertyName, Visibility.PUBLIC, propertyType));
     }
   }
 
   private parseInterfaceMethods(interfaceBody: string, classInfo: ClassInfo): void {
-    // Регулярний вираз для методів інтерфейсу
-    const methodRegex = /([\w<>\[\]]+)\s+(\w+)\s*\(([^)]*)\)\s*;/g;
-    
+    const methodRegex = /([\w<>\[\],\s]+?)\s+(\w+)\s*\(([^)]*)\)\s*;/g;
+
     let match;
     while ((match = methodRegex.exec(interfaceBody)) !== null) {
-      const returnType = match[1];
+      const returnType = this.cleanType(match[1]);
       const methodName = match[2];
       const paramsStr = match[3];
-      
-      // Пропускаємо властивості
-      if (methodName === 'get' || methodName === 'set') continue;
-      
+
+      if (methodName === 'get' || methodName === 'set') {
+        continue;
+      }
+
       const parameters = this.parseParameters(paramsStr);
-      const method = new Method(methodName, Visibility.PUBLIC, returnType, parameters);
-      classInfo.addMethod(method);
+      classInfo.addMethod(new Method(methodName, Visibility.PUBLIC, returnType, parameters));
     }
   }
 
@@ -241,53 +479,52 @@ export class CSharpParser extends BaseParser {
     if (!paramsStr.trim()) {
       return [];
     }
-    
+
     const parameters: Parameter[] = [];
     const paramParts = paramsStr.split(',');
-    
+
     for (const part of paramParts) {
       const trimmed = part.trim();
-      if (!trimmed) continue;
-      
-      // Парсимо параметр: [modifier] type name [= defaultValue]
-      const paramMatch = /(ref|out|in|params)?\s*([\w<>\[\]]+)\s+(\w+)(?:\s*=\s*(.+))?/.exec(trimmed);
+      if (!trimmed) {
+        continue;
+      }
+
+      const paramMatch = /(ref|out|in|params)?\s*([\w<>\[\],\s]+?)\s+(\w+)(?:\s*=\s*(.+))?/.exec(trimmed);
       if (paramMatch) {
         const modifier = paramMatch[1];
-        const paramType = modifier ? `${modifier} ${paramMatch[2]}` : paramMatch[2];
+        const typePart = this.cleanType(paramMatch[2]);
+        const paramType = modifier ? `${modifier} ${typePart}` : typePart;
         const paramName = paramMatch[3];
         const defaultValue = paramMatch[4]?.trim();
-        
         parameters.push(new Parameter(paramName, paramType, defaultValue));
       }
     }
-    
+
     return parameters;
   }
 
   private parseVisibility(visibilityStr: string): Visibility {
-    switch (visibilityStr.toLowerCase()) {
-      case 'private':
-        return Visibility.PRIVATE;
-      case 'protected':
-        return Visibility.PROTECTED;
-      case 'internal':
-        return Visibility.PACKAGE;
-      case 'public':
-      default:
-        return Visibility.PUBLIC;
+    const lower = visibilityStr.toLowerCase();
+    if (lower === 'private') {
+      return Visibility.PRIVATE;
     }
+    if (lower === 'protected') {
+      return Visibility.PROTECTED;
+    }
+    if (lower === 'internal') {
+      return Visibility.PACKAGE;
+    }
+    return Visibility.PUBLIC;
   }
 
   private parseInheritance(className: string, inheritanceStr: string, diagram: ClassDiagram): void {
-    const parts = inheritanceStr.split(',').map(p => p.trim());
-    
+    const parts = inheritanceStr.split(',').map(p => p.trim()).filter(Boolean);
+
     for (const part of parts) {
-      // Перший елемент після ':' може бути базовим класом або інтерфейсом
-      // В C# інтерфейси зазвичай починаються з 'I'
       const isInterface = part.startsWith('I') && part.length > 1 && part[1] === part[1].toUpperCase();
       const relationType = isInterface ? RelationType.IMPLEMENTATION : RelationType.INHERITANCE;
-      const modifier = isInterface ? 'implements' : 'extends'; // C# синтаксис подібний
-      
+      const modifier = isInterface ? 'implements' : 'extends';
+
       diagram.addRelationship(new Relationship(
         className,
         part,
@@ -297,5 +534,13 @@ export class CSharpParser extends BaseParser {
       ));
     }
   }
-}
 
+  private cleanType(value: string, modifiers: string[] = []): string {
+    let result = value;
+    modifiers.forEach(mod => {
+      const regex = new RegExp(`\\b${mod}\\b`, 'g');
+      result = result.replace(regex, '');
+    });
+    return this.cleanString(result);
+  }
+}

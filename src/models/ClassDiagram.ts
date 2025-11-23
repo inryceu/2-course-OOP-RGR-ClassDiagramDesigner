@@ -1,6 +1,3 @@
-/**
- * Перелік типів видимості членів класу
- */
 export enum Visibility {
   PUBLIC = '+',
   PRIVATE = '-',
@@ -8,21 +5,15 @@ export enum Visibility {
   PACKAGE = '~'
 }
 
-/**
- * Перелік типів відношень між класами
- */
 export enum RelationType {
-  INHERITANCE = 'inheritance',       // Успадкування
-  IMPLEMENTATION = 'implementation', // Реалізація інтерфейсу
-  COMPOSITION = 'composition',       // Композиція
-  AGGREGATION = 'aggregation',       // Агрегація
-  ASSOCIATION = 'association',       // Асоціація
-  DEPENDENCY = 'dependency'          // Залежність
+  INHERITANCE = 'inheritance',
+  IMPLEMENTATION = 'implementation',
+  COMPOSITION = 'composition',
+  AGGREGATION = 'aggregation',
+  ASSOCIATION = 'association',
+  DEPENDENCY = 'dependency'
 }
 
-/**
- * Представляє параметр методу
- */
 export class Parameter {
   constructor(
     public name: string,
@@ -39,9 +30,6 @@ export class Parameter {
   }
 }
 
-/**
- * Представляє метод класу
- */
 export class Method {
   constructor(
     public name: string,
@@ -68,9 +56,6 @@ export class Method {
   }
 }
 
-/**
- * Представляє поле/властивість класу
- */
 export class Field {
   constructor(
     public name: string,
@@ -102,9 +87,6 @@ export class Field {
   }
 }
 
-/**
- * Представляє клас або інтерфейс
- */
 export class ClassInfo {
   public fields: Field[] = [];
   public methods: Method[] = [];
@@ -130,16 +112,13 @@ export class ClassInfo {
   }
 }
 
-/**
- * Представляє відношення між класами
- */
 export class Relationship {
   constructor(
     public from: string,
     public to: string,
     public type: RelationType,
     public label?: string,
-    public inheritanceModifier?: string // public, protected, private, virtual, тощо
+    public inheritanceModifier?: string
   ) {}
 
   toString(): string {
@@ -149,9 +128,6 @@ export class Relationship {
   }
 }
 
-/**
- * Представляє повну діаграму класів
- */
 export class ClassDiagram {
   private classes: Map<string, ClassInfo> = new Map();
   private relationships: Relationship[] = [];
@@ -185,14 +161,8 @@ export class ClassDiagram {
     this.relationships = [];
   }
   
-  /**
-   * Копіює поля та методи від батьківських класів до нащадків
-   * Додає позначку про те, що вони успадковані
-   */
   inheritMembersFromParents(): void {
-    // Створюємо мапу батьків для кожного класу
     const parentMap = new Map<string, string[]>();
-    
     this.relationships.forEach(rel => {
       if (rel.type === RelationType.INHERITANCE || rel.type === RelationType.IMPLEMENTATION) {
         if (!parentMap.has(rel.from)) {
@@ -201,26 +171,29 @@ export class ClassDiagram {
         parentMap.get(rel.from)!.push(rel.to);
       }
     });
-    
-    // Для кожного класу копіюємо члени від батьків
+
+    const shouldSkipMethod = (method: Method, parentName: string): boolean => {
+        const normalized = method.name.toLowerCase();
+        return method.name === parentName ||
+              method.name === `~${parentName}`
+              || normalized === 'constructor'
+              || normalized === 'destructor';
+    };
+
     this.classes.forEach((classInfo, className) => {
       const parents = parentMap.get(className);
       if (!parents || parents.length === 0) return;
-      
+
       parents.forEach(parentName => {
         const parentClass = this.classes.get(parentName);
         if (!parentClass) return;
-        
-        // Копіюємо поля від батька (крім private)
+
         parentClass.fields.forEach(field => {
           if (field.visibility !== Visibility.PRIVATE) {
-            // Перевіряємо, чи поле вже не перевизначене
             const alreadyExists = classInfo.fields.some(f => 
               f.name === field.name && !f.isInherited
             );
-            
             if (!alreadyExists) {
-              // Створюємо копію поля з позначкою про успадкування
               const inheritedField = new Field(
                 field.name,
                 field.visibility,
@@ -228,33 +201,29 @@ export class ClassDiagram {
                 field.isStatic,
                 field.isReadonly,
                 field.defaultValue,
-                true, // isInherited
-                parentName // inheritedFrom
+                true,
+                parentName
               );
               classInfo.addField(inheritedField);
             }
           }
         });
-        
-        // Копіюємо методи від батька (крім private)
+
         parentClass.methods.forEach(method => {
-          if (method.visibility !== Visibility.PRIVATE) {
-            // Перевіряємо, чи метод вже не перевизначений (override)
+          if (method.visibility !== Visibility.PRIVATE && !shouldSkipMethod(method, parentName)) {
             const alreadyExists = classInfo.methods.some(m => 
               m.name === method.name && !m.isInherited
             );
-            
             if (!alreadyExists) {
-              // Створюємо копію методу з позначкою про успадкування
               const inheritedMethod = new Method(
                 method.name,
                 method.visibility,
                 method.returnType,
-                [...method.parameters], // копія параметрів
+                [...method.parameters],
                 method.isStatic,
                 method.isAbstract,
-                true, // isInherited
-                parentName // inheritedFrom
+                true,
+                parentName
               );
               classInfo.addMethod(inheritedMethod);
             }

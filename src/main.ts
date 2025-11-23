@@ -1,15 +1,11 @@
 import { ParserFactory, Language } from './parsers/ParserFactory.js';
 import { CanvasRenderer } from './generators/CanvasRenderer.js';
 
-/**
- * Головний клас додатку
- */
 class ClassDiagramApp {
   private parserFactory: ParserFactory;
   private canvasRenderer: CanvasRenderer | null = null;
   private files: Array<{ name: string; content: string }> = [];
   
-  // DOM елементи
   private fileInput: HTMLInputElement;
   private fileList: HTMLElement;
   private languageSelect: HTMLSelectElement;
@@ -25,7 +21,6 @@ class ClassDiagramApp {
   constructor() {
     this.parserFactory = new ParserFactory();
     
-    // Ініціалізуємо DOM елементи
     this.fileInput = document.getElementById('file-input') as HTMLInputElement;
     this.fileList = document.getElementById('file-list') as HTMLElement;
     this.languageSelect = document.getElementById('language-select') as HTMLSelectElement;
@@ -42,18 +37,14 @@ class ClassDiagramApp {
   }
 
   private initialize(): void {
-    // Ініціалізуємо Canvas рендерер
     this.canvasRenderer = new CanvasRenderer(this.diagramCanvas);
     
-    // Додаємо обробники подій
     this.setupEventListeners();
   }
 
   private setupEventListeners(): void {
-    // Завантаження файлів
     this.fileInput.addEventListener('change', (e) => this.handleFileSelect(e));
     
-    // Drag and drop
     const fileLabel = document.querySelector('.file-label') as HTMLElement;
     fileLabel.addEventListener('dragover', (e) => {
       e.preventDefault();
@@ -76,7 +67,6 @@ class ClassDiagramApp {
       }
     });
     
-    // Кнопки
     this.generateBtn.addEventListener('click', () => this.generateDiagram());
     this.clearBtn.addEventListener('click', () => this.clearAll());
     this.exportSvgBtn.addEventListener('click', () => this.exportSVG());
@@ -167,16 +157,12 @@ class ClassDiagramApp {
         return;
       }
       
-      // Отримуємо вибрану мову
       const selectedLanguage = this.languageSelect.value as Language;
       
-      // Парсимо файли
       const diagram = this.parserFactory.parseMultipleFiles(this.files, selectedLanguage);
       
-      // Додаємо успадковані члени до класів-нащадків
       diagram.inheritMembersFromParents();
       
-      // Перевіряємо, чи є класи в діаграмі
       const classes = diagram.getClasses();
       console.log(`Знайдено класів: ${classes.length}`);
       
@@ -185,28 +171,23 @@ class ClassDiagramApp {
         return;
       }
       
-      // Виводимо інформацію про класи для відладки
       classes.forEach(cls => {
         console.log(`Клас: ${cls.name}, Тип: ${cls.getType()}, Полів: ${cls.fields.length}, Методів: ${cls.methods.length}`);
       });
       
-      // Виводимо інформацію про зв'язки
       const relationships = diagram.getRelationships();
       console.log(`Знайдено зв'язків: ${relationships.length}`);
       relationships.forEach(rel => {
         console.log(`  ${rel.from} → ${rel.to} (${rel.type})${rel.label ? ` [${rel.label}]` : ''}`);
       });
-      
-      // Рендеримо діаграму на canvas
+
       if (this.canvasRenderer) {
         this.canvasRenderer.render(diagram);
         console.log('Діаграма успішно відображена на canvas');
       }
-      
-      // Показуємо секцію з діаграмою
+
       this.diagramSection.classList.remove('hidden');
-      
-      // Прокручуємо до діаграми
+
       this.diagramSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
       
     } catch (error) {
@@ -221,7 +202,6 @@ class ClassDiagramApp {
     this.fileInput.value = '';
     this.diagramSection.classList.add('hidden');
     
-    // Очищаємо canvas
     if (this.canvasRenderer) {
       const ctx = this.diagramCanvas.getContext('2d');
       if (ctx) {
@@ -294,7 +274,6 @@ class ClassDiagramApp {
   }
 }
 
-// Запускаємо додаток після завантаження сторінки
 document.addEventListener('DOMContentLoaded', () => {
   new ClassDiagramApp();
 });
