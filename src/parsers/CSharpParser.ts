@@ -544,3 +544,4 @@ export class CSharpParser extends BaseParser {
     return this.cleanString(result);
   }
 }
+

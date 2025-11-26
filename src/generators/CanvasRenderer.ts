@@ -564,46 +564,22 @@ export class CanvasRenderer {
     return points;
   }
   
-  private getRelationshipLabel(type: RelationType): string {
+private getRelationshipLabel(type: RelationType): string {
     switch (type) {
       case RelationType.INHERITANCE:
-        return '«наслідування»';
+        return 'наслідування';
       case RelationType.IMPLEMENTATION:
-        return '«реалізація»';
+        return 'реалізація';
       case RelationType.COMPOSITION:
-        return '«композиція»';
+        return 'композиція';
       case RelationType.AGGREGATION:
-        return '«агрегація»';
+        return 'агрегація';
       case RelationType.ASSOCIATION:
-        return '«асоціація»';
+        return 'асоціація';
       case RelationType.DEPENDENCY:
-        return '«залежність»';
+        return 'залежність';
       default:
         return '';
-    }
-  }
-
-  private findEdgePoint(box: ClassPosition, targetPoint: { x: number; y: number }): { x: number; y: number } {
-    const centerX = box.x + box.width / 2;
-    const centerY = box.y + box.height / 2;
-    
-    const dx = targetPoint.x - centerX;
-    const dy = targetPoint.y - centerY;
-    
-    if (Math.abs(dy) > Math.abs(dx) * 0.5) {
-      const x = centerX + (dx / Math.abs(dy)) * box.height / 2;
-      const y = dy > 0 ? box.y + box.height : box.y; 
-      return { 
-        x: Math.max(box.x + 5, Math.min(box.x + box.width - 5, x)), 
-        y 
-      };
-    } else {
-      const x = dx > 0 ? box.x + box.width : box.x;
-      const y = centerY + (dy / Math.abs(dx)) * box.width / 2;
-      return { 
-        x, 
-        y: Math.max(box.y + 5, Math.min(box.y + box.height - 5, y))
-      };
     }
   }
 

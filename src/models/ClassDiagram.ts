@@ -118,13 +118,18 @@ export class Relationship {
     public to: string,
     public type: RelationType,
     public label?: string,
+    public sourceMultiplicity?: string,
+    public targetMultiplicity?: string,
     public inheritanceModifier?: string
   ) {}
 
   toString(): string {
     const labelStr = this.label ? ` : ${this.label}` : '';
-    const modifierStr = this.inheritanceModifier ? ` (${this.inheritanceModifier})` : '';
-    return `${this.from} ${this.type} ${this.to}${modifierStr}${labelStr}`;
+    const sourceMult = this.sourceMultiplicity ? ` ${this.sourceMultiplicity}` : '';
+    const targetMult = this.targetMultiplicity ? ` ${this.targetMultiplicity}` : '';
+    const modifierStr = this.inheritanceModifier ? ` <<${this.inheritanceModifier}>>` : '';
+    
+    return `${this.from}${sourceMult} ${this.type}${targetMult} ${this.to}${labelStr}${modifierStr}`;
   }
 }
 
@@ -137,7 +142,14 @@ export class ClassDiagram {
   }
 
   addRelationship(relationship: Relationship): void {
-    this.relationships.push(relationship);
+    const exists = this.relationships.some(r => 
+      r.from === relationship.from && 
+      r.to === relationship.to && 
+      r.type === relationship.type
+    );
+    if (!exists) {
+      this.relationships.push(relationship);
+    }
   }
 
   getClasses(): ClassInfo[] {
@@ -175,9 +187,9 @@ export class ClassDiagram {
     const shouldSkipMethod = (method: Method, parentName: string): boolean => {
         const normalized = method.name.toLowerCase();
         return method.name === parentName ||
-              method.name === `~${parentName}`
-              || normalized === 'constructor'
-              || normalized === 'destructor';
+               method.name === `~${parentName}`
+               || normalized === 'constructor'
+               || normalized === 'destructor';
     };
 
     this.classes.forEach((classInfo, className) => {
@@ -233,4 +245,3 @@ export class ClassDiagram {
     });
   }
 }
-
