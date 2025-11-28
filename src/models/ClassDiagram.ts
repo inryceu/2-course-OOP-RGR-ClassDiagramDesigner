@@ -1,3 +1,5 @@
+import { shouldSkipMethod } from '../utils/parserHelpers.js';
+
 export enum Visibility {
   PUBLIC = '+',
   PRIVATE = '-',
@@ -20,14 +22,6 @@ export class Parameter {
     public type: string,
     public defaultValue?: string
   ) {}
-
-  toString(): string {
-    let result = `${this.name}: ${this.type}`;
-    if (this.defaultValue) {
-      result += ` = ${this.defaultValue}`;
-    }
-    return result;
-  }
 }
 
 export class Method {
@@ -41,19 +35,6 @@ export class Method {
     public isInherited: boolean = false,
     public inheritedFrom?: string
   ) {}
-
-  toString(): string {
-    const modifiers = [];
-    if (this.isStatic) modifiers.push('static');
-    if (this.isAbstract) modifiers.push('abstract');
-    
-    const params = this.parameters.map(p => p.toString()).join(', ');
-    const signature = `${this.name}(${params}): ${this.returnType}`;
-    
-    return modifiers.length > 0 
-      ? `${this.visibility}${modifiers.join(' ')} ${signature}`
-      : `${this.visibility}${signature}`;
-  }
 }
 
 export class Field {
@@ -67,24 +48,6 @@ export class Field {
     public isInherited: boolean = false,
     public inheritedFrom?: string
   ) {}
-
-  toString(): string {
-    const modifiers = [];
-    if (this.isStatic) modifiers.push('static');
-    if (this.isReadonly) modifiers.push('readonly');
-    
-    let result = `${this.visibility}${this.name}: ${this.type}`;
-    
-    if (modifiers.length > 0) {
-      result = `${this.visibility}${modifiers.join(' ')} ${this.name}: ${this.type}`;
-    }
-    
-    if (this.defaultValue) {
-      result += ` = ${this.defaultValue}`;
-    }
-    
-    return result;
-  }
 }
 
 export class ClassInfo {
@@ -104,33 +67,14 @@ export class ClassInfo {
   addMethod(method: Method): void {
     this.methods.push(method);
   }
-
-  getType(): string {
-    if (this.isInterface) return 'interface';
-    if (this.isAbstract) return 'abstract class';
-    return 'class';
-  }
 }
 
 export class Relationship {
   constructor(
     public from: string,
     public to: string,
-    public type: RelationType,
-    public label?: string,
-    public sourceMultiplicity?: string,
-    public targetMultiplicity?: string,
-    public inheritanceModifier?: string
+    public type: RelationType
   ) {}
-
-  toString(): string {
-    const labelStr = this.label ? ` : ${this.label}` : '';
-    const sourceMult = this.sourceMultiplicity ? ` ${this.sourceMultiplicity}` : '';
-    const targetMult = this.targetMultiplicity ? ` ${this.targetMultiplicity}` : '';
-    const modifierStr = this.inheritanceModifier ? ` <<${this.inheritanceModifier}>>` : '';
-    
-    return `${this.from}${sourceMult} ${this.type}${targetMult} ${this.to}${labelStr}${modifierStr}`;
-  }
 }
 
 export class ClassDiagram {
@@ -174,23 +118,7 @@ export class ClassDiagram {
   }
   
   inheritMembersFromParents(): void {
-    const parentMap = new Map<string, string[]>();
-    this.relationships.forEach(rel => {
-      if (rel.type === RelationType.INHERITANCE || rel.type === RelationType.IMPLEMENTATION) {
-        if (!parentMap.has(rel.from)) {
-          parentMap.set(rel.from, []);
-        }
-        parentMap.get(rel.from)!.push(rel.to);
-      }
-    });
-
-    const shouldSkipMethod = (method: Method, parentName: string): boolean => {
-        const normalized = method.name.toLowerCase();
-        return method.name === parentName ||
-               method.name === `~${parentName}`
-               || normalized === 'constructor'
-               || normalized === 'destructor';
-    };
+    const parentMap = this.buildParentMap();
 
     this.classes.forEach((classInfo, className) => {
       const parents = parentMap.get(className);
@@ -200,48 +128,68 @@ export class ClassDiagram {
         const parentClass = this.classes.get(parentName);
         if (!parentClass) return;
 
-        parentClass.fields.forEach(field => {
-          if (field.visibility !== Visibility.PRIVATE) {
-            const alreadyExists = classInfo.fields.some(f => 
-              f.name === field.name && !f.isInherited
-            );
-            if (!alreadyExists) {
-              const inheritedField = new Field(
-                field.name,
-                field.visibility,
-                field.type,
-                field.isStatic,
-                field.isReadonly,
-                field.defaultValue,
-                true,
-                parentName
-              );
-              classInfo.addField(inheritedField);
-            }
-          }
-        });
-
-        parentClass.methods.forEach(method => {
-          if (method.visibility !== Visibility.PRIVATE && !shouldSkipMethod(method, parentName)) {
-            const alreadyExists = classInfo.methods.some(m => 
-              m.name === method.name && !m.isInherited
-            );
-            if (!alreadyExists) {
-              const inheritedMethod = new Method(
-                method.name,
-                method.visibility,
-                method.returnType,
-                [...method.parameters],
-                method.isStatic,
-                method.isAbstract,
-                true,
-                parentName
-              );
-              classInfo.addMethod(inheritedMethod);
-            }
-          }
-        });
+        this.inheritFields(classInfo, parentClass, parentName);
+        this.inheritMethods(classInfo, parentClass, parentName);
       });
+    });
+  }
+
+  private buildParentMap(): Map<string, string[]> {
+    const parentMap = new Map<string, string[]>();
+    this.relationships.forEach(rel => {
+      if (rel.type === RelationType.INHERITANCE || rel.type === RelationType.IMPLEMENTATION) {
+        if (!parentMap.has(rel.from)) {
+          parentMap.set(rel.from, []);
+        }
+        parentMap.get(rel.from)!.push(rel.to);
+      }
+    });
+    return parentMap;
+  }
+
+  private inheritFields(classInfo: ClassInfo, parentClass: ClassInfo, parentName: string): void {
+    parentClass.fields.forEach(field => {
+      if (field.visibility !== Visibility.PRIVATE) {
+        const alreadyExists = classInfo.fields.some(f => 
+          f.name === field.name && !f.isInherited
+        );
+        if (!alreadyExists) {
+          const inheritedField = new Field(
+            field.name,
+            field.visibility,
+            field.type,
+            field.isStatic,
+            field.isReadonly,
+            field.defaultValue,
+            true,
+            parentName
+          );
+          classInfo.addField(inheritedField);
+        }
+      }
+    });
+  }
+
+  private inheritMethods(classInfo: ClassInfo, parentClass: ClassInfo, parentName: string): void {
+    parentClass.methods.forEach(method => {
+      if (method.visibility !== Visibility.PRIVATE && !shouldSkipMethod(method.name, parentName)) {
+        const alreadyExists = classInfo.methods.some(m => 
+          m.name === method.name && !m.isInherited
+        );
+        if (!alreadyExists) {
+          const inheritedMethod = new Method(
+            method.name,
+            method.visibility,
+            method.returnType,
+            [...method.parameters],
+            method.isStatic,
+            method.isAbstract,
+            true,
+            parentName
+          );
+          classInfo.addMethod(inheritedMethod);
+        }
+      }
     });
   }
 }

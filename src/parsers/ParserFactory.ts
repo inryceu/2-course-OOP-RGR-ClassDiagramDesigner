@@ -55,7 +55,7 @@ export class ParserFactory {
       case 'cs':
         return Language.CSHARP;
       default:
-        throw new Error(`Непідтримуване розширення файлу: ${extension}`);
+        throw new Error(`Unsupported file extension: ${extension}`);
     }
   }
 
@@ -68,7 +68,7 @@ export class ParserFactory {
 
     const parser = this.getParser(targetLanguage);
     if (!parser) {
-      throw new Error(`Парсер для мови ${targetLanguage} не знайдено`);
+      throw new Error(`Parser for language ${targetLanguage} not found`);
     }
 
     return parser.parse(sourceCode, fileName);
@@ -91,7 +91,7 @@ export class ParserFactory {
           combinedDiagram.addRelationship(relationship);
         }
       } catch (error) {
-        console.warn(`Помилка при парсингу файлу ${file.name}:`, error);
+        console.warn(`Error parsing file ${file.name}:`, error);
       }
     }
 

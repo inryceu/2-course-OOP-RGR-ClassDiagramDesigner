@@ -1,5 +1,13 @@
 import { BaseParser } from './IParser.js';
 import { ClassDiagram, ClassInfo, Field, Method, Parameter, Visibility, Relationship, RelationType } from '../models/ClassDiagram.js';
+import { cleanType } from '../utils/stringUtils.js';
+import {
+  parseVisibility,
+  parseCSharpParameters,
+  addConstructorToClass,
+  filterControlFlowKeywords
+} from '../utils/parserHelpers.js';
+import { getTopLevelStatements, skipBlock } from '../utils/parsingUtils.js';
 
 export class CSharpParser extends BaseParser {
   constructor() {
@@ -152,7 +160,7 @@ export class CSharpParser extends BaseParser {
   }
 
   private parseFields(classBody: string, classInfo: ClassInfo): void {
-    const statements = this.getTopLevelStatements(classBody);
+    const statements = getTopLevelStatements(classBody);
     const fieldRegex = /^(?:(public|private|protected|internal)\s+)?((?:static|readonly|const)\s+)*([\w<>\[\],\s]+?)\s+(\w+)(?:\s*=\s*([^;]+))?;$/;
 
     statements.forEach(statement => {
@@ -169,13 +177,13 @@ export class CSharpParser extends BaseParser {
         return;
       }
 
-      const visibility = this.parseVisibility(match[1] || 'private');
+      const visibility = parseVisibility(match[1] || 'private', Visibility.PRIVATE);
       const typeRaw = match[3];
       const fieldName = match[4];
       const defaultValue = match[5]?.trim();
       const isStatic = /\bstatic\b/.test(trimmed);
       const isReadonly = /\breadonly\b/.test(trimmed) || /\bconst\b/.test(trimmed);
-      const fieldType = this.cleanType(typeRaw, ['static', 'readonly', 'const']);
+      const fieldType = cleanType(typeRaw, ['static', 'readonly', 'const']);
 
       classInfo.addField(new Field(fieldName, visibility, fieldType, isStatic, isReadonly, defaultValue));
     });
@@ -197,8 +205,8 @@ export class CSharpParser extends BaseParser {
         continue;
       }
 
-      const visibility = this.parseVisibility(match[1] || 'private');
-      const propertyType = this.cleanType(match[2]);
+      const visibility = parseVisibility(match[1] || 'private', Visibility.PRIVATE);
+      const propertyType = cleanType(match[2]);
       const propertyName = match[3];
       const isStatic = /\bstatic\b/.test(header);
       const bodyContent = body.trim();
@@ -210,7 +218,7 @@ export class CSharpParser extends BaseParser {
   }
 
   private parseMethods(classBody: string, classInfo: ClassInfo): void {
-    const statements = this.getTopLevelStatements(classBody);
+    const statements = getTopLevelStatements(classBody);
     const methodRegex = /^((?:public|private|protected|internal)\s+)?((?:static|virtual|override|abstract|async|sealed|extern|partial)\s+)*([\w<>\[\],\s]+?)\s+(\w+)\s*\(([^)]*)\)\s*(?:;)?$/;
     const constructorRegex = new RegExp(`^((?:public|private|protected|internal)\\s+)?${this.escapeRegex(classInfo.name)}\\s*\\(([^)]*)\\)`);
     const processed = new Set<string>();
@@ -220,15 +228,15 @@ export class CSharpParser extends BaseParser {
       const constructorMatch = constructorRegex.exec(trimmed);
       if (constructorMatch) {
         const visibilityStr = constructorMatch[1] ? constructorMatch[1].trim() : 'public';
-        const visibility = this.parseVisibility(visibilityStr);
-        this.addConstructor(constructorMatch[2], visibility, classInfo);
+        const visibility = parseVisibility(visibilityStr);
+        addConstructorToClass(constructorMatch[2], visibility, classInfo, parseCSharpParameters);
         return;
       }
 
       const destructorRegex = new RegExp(`^~${this.escapeRegex(classInfo.name)}\\s*\\(([^)]*)\\)`);
       const destructorMatch = destructorRegex.exec(trimmed);
       if (destructorMatch) {
-        const parameters = this.parseParameters(destructorMatch[1] || '');
+        const parameters = parseCSharpParameters(destructorMatch[1] || '');
         classInfo.addMethod(new Method(`~${classInfo.name}`, Visibility.PUBLIC, '', parameters));
         return;
       }
@@ -238,15 +246,15 @@ export class CSharpParser extends BaseParser {
         return;
       }
 
-      const visibility = this.parseVisibility((match[1] || 'private').trim());
+      const visibility = parseVisibility((match[1] || 'private').trim(), Visibility.PRIVATE);
       const returnTypeRaw = match[3];
       const methodName = match[4];
       const paramsStr = match[5];
       const isStatic = /\bstatic\b/.test(trimmed);
       const isAbstract = /\babstract\b/.test(trimmed);
-      const returnType = this.cleanType(returnTypeRaw, ['static', 'virtual', 'override', 'abstract', 'async', 'sealed', 'extern', 'partial']);
+      const returnType = cleanType(returnTypeRaw, ['static', 'virtual', 'override', 'abstract', 'async', 'sealed', 'extern', 'partial']);
 
-      if (['get', 'set', 'if', 'for', 'while', 'switch', 'catch'].includes(methodName)) {
+      if (filterControlFlowKeywords(methodName)) {
         return;
       }
 
@@ -254,196 +262,10 @@ export class CSharpParser extends BaseParser {
         return;
       }
 
-      const parameters = this.parseParameters(paramsStr);
+      const parameters = parseCSharpParameters(paramsStr);
       classInfo.addMethod(new Method(methodName, visibility, returnType, parameters, isStatic, isAbstract));
       processed.add(methodName);
     });
-  }
-
-  private addConstructor(paramsStr: string, visibility: Visibility, classInfo: ClassInfo): void {
-    const exists = classInfo.methods.some(m => m.name === classInfo.name);
-    if (exists) {
-      return;
-    }
-    const parameters = this.parseParameters(paramsStr);
-    classInfo.addMethod(new Method(classInfo.name, visibility, '', parameters));
-  }
-
-  private getTopLevelStatements(content: string): string[] {
-    const statements: string[] = [];
-    let current = '';
-    let i = 0;
-    let depth = 0;
-    let inString = false;
-    let stringChar = '';
-    let inVerbatimString = false;
-
-    while (i < content.length) {
-      const char = content[i];
-      const nextChar = i < content.length - 1 ? content[i + 1] : '';
-
-      if (!inString && !inVerbatimString && char === '@' && nextChar === '"') {
-        inVerbatimString = true;
-        current += char + nextChar;
-        i += 2;
-        continue;
-      }
-
-      if (inVerbatimString) {
-        if (char === '"' && nextChar === '"') {
-          current += char + nextChar;
-          i += 2;
-          continue;
-        }
-        if (char === '"') {
-          inVerbatimString = false;
-        }
-        current += char;
-        i++;
-        continue;
-      }
-
-      if (!inString && (char === '"' || char === "'")) {
-        inString = true;
-        stringChar = char;
-        current += char;
-        i++;
-        continue;
-      }
-
-      if (inString) {
-        if (char === stringChar && content[i - 1] !== '\\') {
-          inString = false;
-          stringChar = '';
-        }
-        current += char;
-        i++;
-        continue;
-      }
-
-      if (char === '{') {
-        if (depth === 0) {
-          const trimmed = current.trim();
-          if (trimmed) {
-            statements.push(trimmed);
-          }
-          const nextIndex = this.skipBlock(content, i);
-          i = nextIndex;
-          current = '';
-          continue;
-        }
-        depth++;
-        current += char;
-        i++;
-        continue;
-      }
-
-      if (char === '}') {
-        if (depth > 0) {
-          depth--;
-        }
-        current += char;
-        i++;
-        continue;
-      }
-
-      if (char === ';' && depth === 0) {
-        current += char;
-        const trimmed = current.trim();
-        if (trimmed) {
-          statements.push(trimmed);
-        }
-        current = '';
-        i++;
-        continue;
-      }
-
-      if (char === '/' && nextChar === '/') {
-        while (i < content.length && content[i] !== '\n') {
-          i++;
-        }
-        continue;
-      }
-
-      if (char === '/' && nextChar === '*') {
-        i += 2;
-        while (i < content.length - 1 && !(content[i] === '*' && content[i + 1] === '/')) {
-          i++;
-        }
-        i += 2;
-        continue;
-      }
-
-      current += char;
-      i++;
-    }
-
-    const trimmed = current.trim();
-    if (trimmed) {
-      statements.push(trimmed);
-    }
-
-    return statements;
-  }
-
-  private skipBlock(content: string, startIndex: number): number {
-    let depth = 0;
-    let i = startIndex;
-    let inString = false;
-    let stringChar = '';
-    let inVerbatimString = false;
-
-    while (i < content.length) {
-      const char = content[i];
-      const nextChar = i < content.length - 1 ? content[i + 1] : '';
-
-      if (!inString && !inVerbatimString && char === '@' && nextChar === '"') {
-        inVerbatimString = true;
-        i += 2;
-        continue;
-      }
-
-      if (inVerbatimString) {
-        if (char === '"' && nextChar === '"') {
-          i += 2;
-          continue;
-        }
-        if (char === '"') {
-          inVerbatimString = false;
-        }
-        i++;
-        continue;
-      }
-
-      if (!inString && (char === '"' || char === "'")) {
-        inString = true;
-        stringChar = char;
-        i++;
-        continue;
-      }
-
-      if (inString) {
-        if (char === stringChar && content[i - 1] !== '\\') {
-          inString = false;
-          stringChar = '';
-        }
-        i++;
-        continue;
-      }
-
-      if (char === '{') {
-        depth++;
-      } else if (char === '}') {
-        depth--;
-        if (depth === 0) {
-          return i + 1;
-        }
-      }
-
-      i++;
-    }
-
-    return content.length;
   }
 
   private parseInterfaceProperties(interfaceBody: string, classInfo: ClassInfo): void {
@@ -451,7 +273,7 @@ export class CSharpParser extends BaseParser {
 
     let match;
     while ((match = propertyRegex.exec(interfaceBody)) !== null) {
-      const propertyType = this.cleanType(match[1]);
+      const propertyType = cleanType(match[1]);
       const propertyName = match[2];
       classInfo.addField(new Field(propertyName, Visibility.PUBLIC, propertyType));
     }
@@ -462,59 +284,17 @@ export class CSharpParser extends BaseParser {
 
     let match;
     while ((match = methodRegex.exec(interfaceBody)) !== null) {
-      const returnType = this.cleanType(match[1]);
+      const returnType = cleanType(match[1]);
       const methodName = match[2];
       const paramsStr = match[3];
 
-      if (methodName === 'get' || methodName === 'set') {
+      if (filterControlFlowKeywords(methodName)) {
         continue;
       }
 
-      const parameters = this.parseParameters(paramsStr);
+      const parameters = parseCSharpParameters(paramsStr);
       classInfo.addMethod(new Method(methodName, Visibility.PUBLIC, returnType, parameters));
     }
-  }
-
-  private parseParameters(paramsStr: string): Parameter[] {
-    if (!paramsStr.trim()) {
-      return [];
-    }
-
-    const parameters: Parameter[] = [];
-    const paramParts = paramsStr.split(',');
-
-    for (const part of paramParts) {
-      const trimmed = part.trim();
-      if (!trimmed) {
-        continue;
-      }
-
-      const paramMatch = /(ref|out|in|params)?\s*([\w<>\[\],\s]+?)\s+(\w+)(?:\s*=\s*(.+))?/.exec(trimmed);
-      if (paramMatch) {
-        const modifier = paramMatch[1];
-        const typePart = this.cleanType(paramMatch[2]);
-        const paramType = modifier ? `${modifier} ${typePart}` : typePart;
-        const paramName = paramMatch[3];
-        const defaultValue = paramMatch[4]?.trim();
-        parameters.push(new Parameter(paramName, paramType, defaultValue));
-      }
-    }
-
-    return parameters;
-  }
-
-  private parseVisibility(visibilityStr: string): Visibility {
-    const lower = visibilityStr.toLowerCase();
-    if (lower === 'private') {
-      return Visibility.PRIVATE;
-    }
-    if (lower === 'protected') {
-      return Visibility.PROTECTED;
-    }
-    if (lower === 'internal') {
-      return Visibility.PACKAGE;
-    }
-    return Visibility.PUBLIC;
   }
 
   private parseInheritance(className: string, inheritanceStr: string, diagram: ClassDiagram): void {
@@ -523,25 +303,12 @@ export class CSharpParser extends BaseParser {
     for (const part of parts) {
       const isInterface = part.startsWith('I') && part.length > 1 && part[1] === part[1].toUpperCase();
       const relationType = isInterface ? RelationType.IMPLEMENTATION : RelationType.INHERITANCE;
-      const modifier = isInterface ? 'implements' : 'extends';
 
       diagram.addRelationship(new Relationship(
         className,
         part,
-        relationType,
-        undefined,
-        modifier
+        relationType
       ));
     }
   }
-
-  private cleanType(value: string, modifiers: string[] = []): string {
-    let result = value;
-    modifiers.forEach(mod => {
-      const regex = new RegExp(`\\b${mod}\\b`, 'g');
-      result = result.replace(regex, '');
-    });
-    return this.cleanString(result);
-  }
 }
-

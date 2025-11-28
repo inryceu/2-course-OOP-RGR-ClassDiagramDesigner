@@ -1,5 +1,11 @@
 import { BaseParser } from './IParser.js';
 import { ClassDiagram, ClassInfo, Field, Method, Parameter, Visibility, Relationship, RelationType } from '../models/ClassDiagram.js';
+import {
+  parseCppParameters,
+  splitFieldDeclarations,
+  parseFieldDeclaration
+} from '../utils/parserHelpers.js';
+import { getTopLevelStatements, skipBlock } from '../utils/parsingUtils.js';
 
 export class CppParser extends BaseParser {
   constructor() {
@@ -25,14 +31,14 @@ export class CppParser extends BaseParser {
       const classBody = this.extractBalancedBraces(code, classStartIndex);
 
       if (classBody === null) {
-        console.warn(`Не вдалося знайти тіло класу ${className}`);
+        console.warn(`Could not find class body ${className}`);
         continue;
       }
 
       const classInfo = new ClassInfo(className, false, false);
       this.parseClassBody(classBody, classInfo);
       diagram.addClass(classInfo);
-      console.log(`C++ клас знайдено: ${className}, полів: ${classInfo.fields.length}, методів: ${classInfo.methods.length}`);
+      console.log(`C++ class found: ${className}, fields: ${classInfo.fields.length}, methods: ${classInfo.methods.length}`);
 
       if (inheritanceStr) {
         this.parseInheritance(className, inheritanceStr.trim(), diagram);
@@ -48,14 +54,14 @@ export class CppParser extends BaseParser {
       const structBody = this.extractBalancedBraces(code, structStartIndex);
 
       if (structBody === null) {
-        console.warn(`Не вдалося знайти тіло структури ${structName}`);
+        console.warn(`Could not find struct body ${structName}`);
         continue;
       }
 
       const classInfo = new ClassInfo(structName, false, false);
       this.parseClassBody(structBody, classInfo);
       diagram.addClass(classInfo);
-      console.log(`C++ struct знайдено: ${structName}, полів: ${classInfo.fields.length}, методів: ${classInfo.methods.length}`);
+      console.log(`C++ struct found: ${structName}, fields: ${classInfo.fields.length}, methods: ${classInfo.methods.length}`);
 
       if (inheritanceStr) {
         this.parseInheritance(structName, inheritanceStr.trim(), diagram);
@@ -177,91 +183,8 @@ export class CppParser extends BaseParser {
     return sections;
   }
 
-  private getTopLevelStatements(content: string): string[] {
-    const statements: string[] = [];
-    let current = '';
-    let i = 0;
-
-    while (i < content.length) {
-      const char = content[i];
-
-      if (char === '{') {
-        const trimmed = current.trim();
-        if (trimmed) {
-          statements.push(trimmed);
-        }
-        const nextIndex = this.skipBlock(content, i);
-        i = nextIndex;
-        current = '';
-        continue;
-      }
-
-      if (char === ';') {
-        current += char;
-        const trimmed = current.trim();
-        if (trimmed) {
-          statements.push(trimmed);
-        }
-        current = '';
-        i++;
-        continue;
-      }
-
-      current += char;
-      i++;
-    }
-
-    const trimmed = current.trim();
-    if (trimmed) {
-      statements.push(trimmed);
-    }
-
-    return statements;
-  }
-
-  private skipBlock(content: string, startIndex: number): number {
-    let depth = 0;
-    let i = startIndex;
-    let inString = false;
-    let stringChar = '';
-
-    while (i < content.length) {
-      const char = content[i];
-      const prevChar = i > 0 ? content[i - 1] : '';
-
-      if (!inString && (char === '"' || char === "'")) {
-        inString = true;
-        stringChar = char;
-        i++;
-        continue;
-      }
-
-      if (inString) {
-        if (char === stringChar && prevChar !== '\\') {
-          inString = false;
-          stringChar = '';
-        }
-        i++;
-        continue;
-      }
-
-      if (char === '{') {
-        depth++;
-      } else if (char === '}') {
-        depth--;
-        if (depth === 0) {
-          return i + 1;
-        }
-      }
-
-      i++;
-    }
-
-    return content.length;
-  }
-
   private parseFields(content: string, classInfo: ClassInfo, visibility: Visibility): void {
-    const statements = this.getTopLevelStatements(content);
+    const statements = getTopLevelStatements(content);
     const fieldPattern = /(static\s+)?(const\s+)?(\w+(?:\s*::\s*\w+)*(?:\s*<[^>]+>)?)\s+(\**)([\w\s,=*&()]+);/g;
     const methodPattern = new RegExp(`(virtual\\s+)?(static\\s+)?(\\w+(?:\\s*::\\s*\\w+)*(?:\\s*<[^>]+>)?)\\s+(\\**)(\\w+)\\s*\\(([^)]*)\\)`, 'g');
 
@@ -293,10 +216,10 @@ export class CppParser extends BaseParser {
           fieldType += pointers;
         }
 
-        const fieldDeclarations = this.splitFieldDeclarations(fieldsStr);
+        const fieldDeclarations = splitFieldDeclarations(fieldsStr);
 
         fieldDeclarations.forEach(fieldDecl => {
-          const { name, defaultValue, extraPointers } = this.parseFieldDeclaration(fieldDecl);
+          const { name, defaultValue, extraPointers } = parseFieldDeclaration(fieldDecl);
           if (name) {
             let finalType = fieldType;
             if (extraPointers) {
@@ -310,58 +233,8 @@ export class CppParser extends BaseParser {
     }
   }
 
-  private splitFieldDeclarations(fieldsStr: string): string[] {
-    const fields: string[] = [];
-    let currentField = '';
-    let depth = 0;
-
-    for (let i = 0; i < fieldsStr.length; i++) {
-      const char = fieldsStr[i];
-
-      if (char === '(' || char === '<') {
-        depth++;
-      } else if (char === ')' || char === '>') {
-        depth--;
-      } else if (char === ',' && depth === 0) {
-        if (currentField.trim()) {
-          fields.push(currentField.trim());
-        }
-        currentField = '';
-        continue;
-      }
-
-      currentField += char;
-    }
-
-    if (currentField.trim()) {
-      fields.push(currentField.trim());
-    }
-
-    return fields;
-  }
-
-  private parseFieldDeclaration(fieldDecl: string): { name: string; defaultValue?: string; extraPointers?: string } {
-    let decl = fieldDecl.trim();
-    let extraPointers = '';
-    let i = 0;
-    while (i < decl.length && (decl[i] === '*' || decl[i] === '&')) {
-      extraPointers += decl[i];
-      i++;
-    }
-    decl = decl.substring(i).trim();
-
-    const equalIndex = decl.indexOf('=');
-    if (equalIndex !== -1) {
-      const name = decl.substring(0, equalIndex).trim();
-      const defaultValue = decl.substring(equalIndex + 1).trim();
-      return { name, defaultValue, extraPointers };
-    }
-
-    return { name: decl, extraPointers };
-  }
-
   private parseMethods(content: string, classInfo: ClassInfo, visibility: Visibility): void {
-    const statements = this.getTopLevelStatements(content);
+    const statements = getTopLevelStatements(content);
     const methodPatternString = '(virtual\\s+)?(static\\s+)?(\\w+(?:\\s*::\\s*\\w+)*(?:\\s*<[^>]+>)?)\\s+(\\**)(\\w+)\\s*\\(([^)]*)\\)\\s*(const)?(?:\\s*(?:override|final|noexcept))*\\s*(=\\s*0)?';
     const constructorPattern = `(explicit\\s+)?${this.escapeRegex(classInfo.name)}\\s*\\(([^)]*)\\)(?:\\s*=\\s*(default|delete))?`;
     const destructorPattern = `(virtual\\s+)?~${this.escapeRegex(classInfo.name)}\\s*\\(\\)(?:\\s*(?:override|final))?`;
@@ -381,8 +254,6 @@ export class CppParser extends BaseParser {
         const pointers = match[4];
         const methodName = match[5];
         const paramsStr = match[6];
-        const trailingToken = match[8] ? match[8].trim() : '';
-        const trailingTokens = trailingToken ? trailingToken.split(/\s+/).filter(Boolean) : [];
         const hasPureVirtual = !!match[8];
 
         if (methodName === classInfo.name || methodName.startsWith('~')) {
@@ -393,7 +264,7 @@ export class CppParser extends BaseParser {
           returnType += pointers;
         }
 
-        const parameters = this.parseParameters(paramsStr);
+        const parameters = parseCppParameters(paramsStr);
         const method = new Method(methodName, visibility, returnType, parameters, isStatic, hasPureVirtual);
         classInfo.addMethod(method);
       }
@@ -405,7 +276,7 @@ export class CppParser extends BaseParser {
         const isDefaultOrDelete = constructorMatch[3];
 
         if (!isDefaultOrDelete || isDefaultOrDelete === 'default') {
-          const parameters = this.parseParameters(paramsStr);
+          const parameters = parseCppParameters(paramsStr);
           const constructor = new Method(classInfo.name, visibility, '', parameters);
           classInfo.addMethod(constructor);
         }
@@ -420,32 +291,6 @@ export class CppParser extends BaseParser {
     }
   }
 
-  private parseParameters(paramsStr: string): Parameter[] {
-    if (!paramsStr.trim()) {
-      return [];
-    }
-
-    const parameters: Parameter[] = [];
-    const paramParts = paramsStr.split(',');
-
-    for (const part of paramParts) {
-      const trimmed = part.trim();
-      if (!trimmed) continue;
-
-      const paramMatch = /(\w+(?:\s*::\s*\w+)*(?:\s*<[^>]+>)?)\s+(&|\**)?(\w+)(?:\s*=\s*(.+))?/.exec(trimmed);
-      if (paramMatch) {
-        const pointerPart = paramMatch[2] || '';
-        const paramType = paramMatch[1].trim() + pointerPart;
-        const paramName = paramMatch[3];
-        const defaultValue = paramMatch[4]?.trim();
-
-        parameters.push(new Parameter(paramName, paramType, defaultValue));
-      }
-    }
-
-    return parameters;
-  }
-
   private parseInheritance(className: string, inheritanceStr: string, diagram: ClassDiagram): void {
     const baseClasses = inheritanceStr.split(',');
 
@@ -456,17 +301,13 @@ export class CppParser extends BaseParser {
       if (fullMatch) {
         const modifiers = fullMatch[1].trim();
         const baseClassName = fullMatch[2];
-        const inheritanceModifier = modifiers || 'private';
 
         diagram.addRelationship(new Relationship(
           className,
           baseClassName,
-          RelationType.INHERITANCE,
-          undefined,
-          inheritanceModifier
+          RelationType.INHERITANCE
         ));
       }
     }
   }
 }
-

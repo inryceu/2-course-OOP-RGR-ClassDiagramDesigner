@@ -38,7 +38,6 @@ class ClassDiagramApp {
 
   private initialize(): void {
     this.canvasRenderer = new CanvasRenderer(this.diagramCanvas);
-    
     this.setupEventListeners();
   }
 
@@ -87,7 +86,7 @@ class ClassDiagramApp {
         this.files.push({ name: file.name, content });
         this.addFileToList(file.name);
       } catch (error) {
-        this.showError(`Помилка при читанні файлу ${file.name}: ${error}`);
+        this.showError(`Error reading file ${file.name}: ${error}`);
       }
     }
     
@@ -153,7 +152,7 @@ class ClassDiagramApp {
       this.hideError();
       
       if (this.files.length === 0) {
-        this.showError('Будь ласка, завантажте хоча б один файл');
+        this.showError('Please upload at least one file');
         return;
       }
       
@@ -164,26 +163,27 @@ class ClassDiagramApp {
       diagram.inheritMembersFromParents();
       
       const classes = diagram.getClasses();
-      console.log(`Знайдено класів: ${classes.length}`);
+      console.log(`Classes found: ${classes.length}`);
       
       if (classes.length === 0) {
-        this.showError('Не знайдено жодного класу або інтерфейсу у завантажених файлах');
+        this.showError('No classes or interfaces found in uploaded files');
         return;
       }
       
       classes.forEach(cls => {
-        console.log(`Клас: ${cls.name}, Тип: ${cls.getType()}, Полів: ${cls.fields.length}, Методів: ${cls.methods.length}`);
+        const type = cls.isInterface ? 'interface' : cls.isAbstract ? 'abstract class' : 'class';
+        console.log(`Class: ${cls.name}, Type: ${type}, Fields: ${cls.fields.length}, Methods: ${cls.methods.length}`);
       });
       
       const relationships = diagram.getRelationships();
-      console.log(`Знайдено зв'язків: ${relationships.length}`);
+      console.log(`Relationships found: ${relationships.length}`);
       relationships.forEach(rel => {
-        console.log(`  ${rel.from} → ${rel.to} (${rel.type})${rel.label ? ` [${rel.label}]` : ''}`);
+        console.log(`  ${rel.from} → ${rel.to} (${rel.type})`);
       });
 
       if (this.canvasRenderer) {
         this.canvasRenderer.render(diagram);
-        console.log('Діаграма успішно відображена на canvas');
+        console.log('Diagram successfully rendered on canvas');
       }
 
       this.diagramSection.classList.remove('hidden');
@@ -192,7 +192,7 @@ class ClassDiagramApp {
       
     } catch (error) {
       console.error('Diagram generation error:', error);
-      this.showError(`Помилка при генерації діаграми: ${error}`);
+      this.showError(`Error generating diagram: ${error}`);
     }
   }
 
@@ -225,27 +225,27 @@ class ClassDiagramApp {
   private exportSVG(): void {
     try {
       if (!this.canvasRenderer) {
-        this.showError('Діаграма ще не згенерована');
+        this.showError('Diagram not yet generated');
         return;
       }
       
       const svgContent = this.canvasRenderer.exportToSVG();
       this.downloadFile(svgContent, 'class-diagram.svg', 'image/svg+xml');
     } catch (error) {
-      this.showError(`Помилка при експорті SVG: ${error}`);
+      this.showError(`Error exporting SVG: ${error}`);
     }
   }
 
   private async exportPNG(): Promise<void> {
     try {
       if (!this.canvasRenderer) {
-        this.showError('Діаграма ще не згенерована');
+        this.showError('Diagram not yet generated');
         return;
       }
       
       const pngBlob = await this.canvasRenderer.exportToPNG();
       if (!pngBlob) {
-        throw new Error('Не вдалося створити PNG');
+        throw new Error('Failed to create PNG');
       }
       
       const url = URL.createObjectURL(pngBlob);
@@ -257,7 +257,7 @@ class ClassDiagramApp {
       
       URL.revokeObjectURL(url);
     } catch (error) {
-      this.showError(`Помилка при експорті PNG: ${error}`);
+      this.showError(`Error exporting PNG: ${error}`);
     }
   }
 
