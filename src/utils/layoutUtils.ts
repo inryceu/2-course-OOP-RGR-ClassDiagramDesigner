@@ -1,31 +1,6 @@
 import { ClassInfo, Relationship, RelationType } from '../models/ClassDiagram.js';
 import { Rectangle } from './geometryUtils.js';
 
-export function sortClassesByConnections(
-  classes: ClassInfo[], 
-  relationships: Relationship[]
-): ClassInfo[] {
-  const connectionCount = new Map<string, number>();
-  
-  classes.forEach(cls => connectionCount.set(cls.name, 0));
-  
-  relationships.forEach(rel => {
-    connectionCount.set(rel.from, (connectionCount.get(rel.from) || 0) + 1);
-    connectionCount.set(rel.to, (connectionCount.get(rel.to) || 0) + 1);
-  });
-  
-  return [...classes].sort((a, b) => {
-    const aCount = connectionCount.get(a.name) || 0;
-    const bCount = connectionCount.get(b.name) || 0;
-    
-    if (aCount !== bCount) return bCount - aCount;
-    if (a.isInterface !== b.isInterface) return a.isInterface ? -1 : 1;
-    if (a.isAbstract !== b.isAbstract) return a.isAbstract ? -1 : 1;
-    
-    return a.name.localeCompare(b.name);
-  });
-}
-
 export function resolveOverlaps(
   positions: Map<string, Rectangle>,
   classNames: string[],
@@ -334,20 +309,3 @@ function distributeRemainingClasses(
     }
   }
 }
-
-export function enforceMaxItemsPerLevel<T>(items: T[][], maxPerLevel: number): T[][] {
-  const result: T[][] = [];
-  
-  for (const level of items) {
-    if (level.length <= maxPerLevel) {
-      result.push(level);
-    } else {
-      for (let i = 0; i < level.length; i += maxPerLevel) {
-        result.push(level.slice(i, i + maxPerLevel));
-      }
-    }
-  }
-  
-  return result;
-}
-

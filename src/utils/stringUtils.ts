@@ -48,4 +48,3 @@ export function extractContentBetweenAngles(str: string): string | null {
   }
   return null;
 }
-

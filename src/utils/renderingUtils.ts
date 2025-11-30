@@ -293,4 +293,3 @@ export function getRelationshipTypeOffset(type: RelationType): number {
       return 0;
   }
 }
-

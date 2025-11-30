@@ -1,5 +1,5 @@
 import { ClassDiagram, ClassInfo, Relationship, RelationType } from '../models/ClassDiagram.js';
-import { Point, Rectangle } from '../utils/geometryUtils.js';
+import { Rectangle } from '../utils/geometryUtils.js';
 import { 
   resolveOverlaps, 
   calculateConnectionDensity, 
@@ -295,8 +295,8 @@ export class CanvasRenderer {
     
     const sourceYs = sources.map(s => s.pos.y);
     const maxSourceY = Math.max(...sourceYs);
-    const verticalGap = 40;
-    const mergeY = maxSourceY + verticalGap;
+    const verticalGap = 20;
+    const mergeY = maxSourceY - verticalGap;
     
     this.ctx.save();
     this.ctx.strokeStyle = this.config.lineColor;

@@ -152,8 +152,6 @@ export function findBestHorizontalY(
       candidateY,
       minX,
       maxX,
-      minY,
-      maxY,
       from,
       to,
       margin,
@@ -175,8 +173,6 @@ function calculatePathScore(
   candidateY: number,
   minX: number,
   maxX: number,
-  minY: number,
-  maxY: number,
   from: Rectangle,
   to: Rectangle,
   margin: number,
@@ -266,4 +262,3 @@ export function findObstructionBetween(
   
   return null;
 }
-

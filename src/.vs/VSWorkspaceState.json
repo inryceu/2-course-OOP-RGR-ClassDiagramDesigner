@@ -1,0 +1,11 @@
+{
+  "ExpandedNodes": [
+    "",
+    "\\generators",
+    "\\models",
+    "\\parsers",
+    "\\utils"
+  ],
+  "SelectedNode": "\\utils\\geometryUtils.ts",
+  "PreviewInSolutionExplorer": false
+}

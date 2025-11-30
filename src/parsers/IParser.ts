@@ -1,6 +1,5 @@
 import { ClassDiagram } from '../models/ClassDiagram.js';
 import { cleanString, escapeRegex } from '../utils/stringUtils.js';
-import { removeComments } from '../utils/parsingUtils.js';
 
 export interface IParser {
   parse(sourceCode: string, fileName?: string): ClassDiagram;

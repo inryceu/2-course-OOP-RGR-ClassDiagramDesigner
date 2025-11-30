@@ -1,4 +1,4 @@
-import { ClassInfo, Field, Method, Visibility } from '../models/ClassDiagram.js';
+import { ClassInfo, Field, Method } from '../models/ClassDiagram.js';
 import { shortenType, truncateText } from './stringUtils.js';
 
 export interface DrawConfig {
@@ -233,4 +233,3 @@ export function setupCanvas(
   ctx.font = `${fontSize}px ${fontFamily}`;
   ctx.textBaseline = 'middle';
 }
-

@@ -212,4 +212,3 @@ export function shouldSkipMethod(methodName: string, parentName: string): boolea
 export function filterControlFlowKeywords(methodName: string): boolean {
   return ['if', 'for', 'while', 'switch', 'catch', 'get', 'set'].includes(methodName);
 }
-

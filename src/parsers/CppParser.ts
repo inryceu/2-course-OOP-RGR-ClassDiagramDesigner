@@ -1,11 +1,11 @@
 import { BaseParser } from './IParser.js';
-import { ClassDiagram, ClassInfo, Field, Method, Parameter, Visibility, Relationship, RelationType } from '../models/ClassDiagram.js';
+import { ClassDiagram, ClassInfo, Field, Method, Visibility, Relationship, RelationType } from '../models/ClassDiagram.js';
 import {
   parseCppParameters,
   splitFieldDeclarations,
   parseFieldDeclaration
 } from '../utils/parserHelpers.js';
-import { getTopLevelStatements, skipBlock } from '../utils/parsingUtils.js';
+import { getTopLevelStatements } from '../utils/parsingUtils.js';
 
 export class CppParser extends BaseParser {
   constructor() {
@@ -13,7 +13,7 @@ export class CppParser extends BaseParser {
     this.supportedExtensions = ['cpp', 'cc', 'cxx', 'h', 'hpp', 'hxx'];
   }
 
-  parse(sourceCode: string, fileName?: string): ClassDiagram {
+  parse(sourceCode: string): ClassDiagram {
     const diagram = new ClassDiagram();
     const cleanCode = this.removeComments(sourceCode, '//', '/*', '*/');
     this.parseClasses(cleanCode, diagram);

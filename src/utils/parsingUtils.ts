@@ -361,4 +361,3 @@ export function skipBlock(content: string, startIndex: number): number {
   }
   return content.length;
 }
-

@@ -1,5 +1,5 @@
 import { BaseParser } from './IParser.js';
-import { ClassDiagram, ClassInfo, Field, Method, Parameter, Visibility, Relationship, RelationType } from '../models/ClassDiagram.js';
+import { ClassDiagram, ClassInfo, Field, Method, Visibility, Relationship, RelationType } from '../models/ClassDiagram.js';
 import { cleanType } from '../utils/stringUtils.js';
 import {
   parseVisibility,
@@ -7,7 +7,7 @@ import {
   addConstructorToClass,
   filterControlFlowKeywords
 } from '../utils/parserHelpers.js';
-import { getTopLevelStatements, skipBlock } from '../utils/parsingUtils.js';
+import { getTopLevelStatements } from '../utils/parsingUtils.js';
 
 export class CSharpParser extends BaseParser {
   constructor() {
@@ -15,7 +15,7 @@ export class CSharpParser extends BaseParser {
     this.supportedExtensions = ['cs'];
   }
 
-  parse(sourceCode: string, fileName?: string): ClassDiagram {
+  parse(sourceCode: string): ClassDiagram {
     const diagram = new ClassDiagram();
     const cleanCode = this.removeComments(sourceCode, '//', '/*', '*/');
     this.parseClasses(cleanCode, diagram);

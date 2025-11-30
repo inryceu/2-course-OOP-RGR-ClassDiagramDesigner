@@ -1,5 +1,5 @@
 import { BaseParser } from './IParser.js';
-import { ClassDiagram, ClassInfo, Field, Method, Parameter, Visibility, Relationship, RelationType } from '../models/ClassDiagram.js';
+import { ClassDiagram, ClassInfo, Field, Method, Visibility, Relationship, RelationType } from '../models/ClassDiagram.js';
 import { cleanString, cleanName, extractContentBetweenAngles } from '../utils/stringUtils.js';
 import { 
   removeComments, 
@@ -9,7 +9,6 @@ import {
 import {
   parseVisibility,
   parseTypeScriptParameters,
-  parseJavaScriptParameters,
   extractConstructorParams,
   filterControlFlowKeywords
 } from '../utils/parserHelpers.js';
@@ -25,10 +24,10 @@ export class TypeScriptParser extends BaseParser {
     console.log(`[TypeScriptParser] Source code length: ${sourceCode.length} characters`);
     
     const diagram = new ClassDiagram();
-    return this.parseStreaming(sourceCode, diagram, fileName);
+    return this.parseStreaming(sourceCode, diagram);
   }
 
-  private parseStreaming(sourceCode: string, diagram: ClassDiagram, fileName?: string): ClassDiagram {
+  private parseStreaming(sourceCode: string, diagram: ClassDiagram): ClassDiagram {
     const cleanCode = removeComments(sourceCode, { supportRegex: true, supportTemplates: true });
     console.log(`[TypeScriptParser] After comment removal: ${cleanCode.length} characters`);
     
