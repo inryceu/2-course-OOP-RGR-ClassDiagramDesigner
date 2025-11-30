@@ -1,0 +1,294 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    background: #0f0f0f;
+    color: #f5f5f5;
+    min-height: 100vh;
+    padding: 2rem;
+    display: flex;
+    justify-content: center;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    width: 100%;
+}
+
+header {
+    text-align: left;
+    margin-bottom: 2.5rem;
+}
+
+header h1 {
+    font-size: 2.25rem;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    margin-bottom: 0.5rem;
+}
+
+.subtitle {
+    font-size: 1rem;
+    color: #a6a6a6;
+}
+
+main {
+    background: #141414;
+    border-radius: 1.5rem;
+    padding: 2rem;
+    border: 1px solid #1f1f1f;
+    box-shadow: 0 32px 60px -40px rgba(0, 0, 0, 0.9);
+}
+
+.upload-section {
+    margin-bottom: 2rem;
+}
+
+.file-input-wrapper {
+    position: relative;
+    margin-bottom: 1.5rem;
+}
+
+.file-label {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 3rem;
+    border: 1px dashed #2a2a2a;
+    border-radius: 1rem;
+    cursor: pointer;
+    transition: border-color 0.2s ease, background 0.2s ease;
+    background: #101010;
+}
+
+.file-label:hover {
+    border-color: #f5f5f5;
+    background: #151515;
+}
+
+.file-label svg {
+    color: #f5f5f5;
+    margin-bottom: 1rem;
+}
+
+.file-label span {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #f5f5f5;
+    margin-bottom: 0.5rem;
+}
+
+.file-label small {
+    color: #8c8c8c;
+    font-size: 0.9rem;
+}
+
+#file-input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.language-selector {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    color: #f5f5f5;
+}
+
+.language-selector label {
+    font-weight: 600;
+}
+
+.language-selector select {
+    flex: 1;
+    padding: 0.75rem 1rem;
+    border: 1px solid #2a2a2a;
+    border-radius: 0.75rem;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: border-color 0.2s ease, background 0.2s ease;
+    background: #0f0f0f;
+    color: #f5f5f5;
+}
+
+.language-selector select:focus {
+    outline: none;
+    border-color: #f5f5f5;
+}
+
+.file-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.file-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1rem;
+    background: #181818;
+    border-radius: 0.75rem;
+    transition: background 0.2s ease, border-color 0.2s ease;
+    border: 1px solid #202020;
+}
+
+.file-item:hover {
+    background: #1f1f1f;
+    border-color: #2a2a2a;
+}
+
+.file-info {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.file-icon {
+    width: 32px;
+    height: 32px;
+    background: #0f0f0f;
+    color: #f5f5f5;
+    border-radius: 0.5rem;
+    border: 1px solid #2a2a2a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 0.75rem;
+}
+
+.file-name {
+    font-weight: 500;
+    color: #f5f5f5;
+}
+
+.file-remove {
+    background: none;
+    border: none;
+    color: #8c8c8c;
+    cursor: pointer;
+    padding: 0.25rem;
+    transition: color 0.2s ease;
+}
+
+.file-remove:hover {
+    color: #f87171;
+}
+
+.actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.btn {
+    padding: 0.85rem 2rem;
+    border-radius: 999px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.2s ease, opacity 0.2s ease, background 0.2s ease, color 0.2s ease;
+}
+
+.btn-primary {
+    background: #f5f5f5;
+    color: #0f0f0f;
+    border: none;
+}
+
+.btn-primary:hover:not(:disabled) {
+    transform: translateY(-1px);
+}
+
+.btn-primary:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.btn-secondary {
+    background: transparent;
+    border: 1px solid #2a2a2a;
+    color: #f5f5f5;
+}
+
+.btn-secondary:hover {
+    background: #1a1a1a;
+}
+
+.btn-outline {
+    background: transparent;
+    border: 1px solid #2a2a2a;
+    color: #f5f5f5;
+}
+
+.btn-outline:hover {
+    background: #f5f5f5;
+    color: #0f0f0f;
+}
+
+.diagram-section {
+    margin-top: 2rem;
+    padding-top: 2rem;
+    border-top: 1px solid #1f1f1f;
+}
+
+.diagram-section h2 {
+    color: #f5f5f5;
+    margin-bottom: 1.5rem;
+}
+
+.diagram-container {
+    background: #101010;
+    border: 1px solid #1f1f1f;
+    border-radius: 1rem;
+    padding: 2rem;
+    margin-bottom: 1rem;
+    overflow: auto;
+    min-height: 400px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-start;
+}
+
+#diagram-canvas {
+    display: block;
+    max-width: 100%;
+    height: auto;
+}
+
+.diagram-actions {
+    display: flex;
+    gap: 1rem;
+}
+
+.error-section {
+    background: #1a1111;
+    border: 1px solid #3a1a1a;
+    border-radius: 1rem;
+    padding: 1.5rem;
+    margin-top: 1rem;
+}
+
+.error-section h3 {
+    color: #ff6b6b;
+    margin-bottom: 0.5rem;
+}
+
+.error-section p {
+    color: #ffaaaa;
+}
+
+.hidden {
+    display: none;
+}
+
